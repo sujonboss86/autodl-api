@@ -9,6 +9,7 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+
 // -------------------------
 // Root route (UptimeRobot friendly)
 app.get("/", (req, res) => {
@@ -18,6 +19,7 @@ app.get("/", (req, res) => {
     <p>✅ Server running for ${Math.floor(process.uptime())} seconds</p>
   `);
 });
+
 
 // -------------------------
 // Status route (JSON)
@@ -30,39 +32,47 @@ app.get("/status", (req, res) => {
   });
 });
 
+
 // -------------------------
-// Download route (direct stream)
+// Download route
 app.get("/download", (req, res) => {
   const url = req.query.url;
-  if (!url) return res.status(400).send("❌ No URL provided");
+  if (!url) return res.send("❌ No URL provided");
 
-  const output = `video_${Date.now()}.%(ext)s`;
-  const cmd = `yt-dlp -o "${output}" ${url}`;
+  // unique filename
+  const fileName = `video_${Date.now()}.mp4`;
+  const filePath = path.join(__dirname, fileName);
 
-  exec(cmd, (error, stdout, stderr) => {
-    if (error) {
-      console.error("❌ yt-dlp error:", error.message);
-      return res.status(500).send("❌ Download failed: " + error.message);
+  // shorts fix
+  let fixedUrl = url.includes("shorts")
+    ? url.replace("youtube.com/shorts/", "youtube.com/watch?v=")
+    : url;
+
+  const cmd = `yt-dlp -f "best[ext=mp4]" --no-playlist "${fixedUrl}" -o "${filePath}"`;
+
+  exec(cmd, (err) => {
+    if (err) {
+      console.log(err);
+      return res.send("❌ Download error");
     }
 
-    // Find downloaded file
-    const file = fs.readdirSync(".").find(f => f.startsWith("video_"));
-    if (!file) return res.status(500).send("❌ File not found");
+    if (!fs.existsSync(filePath)) {
+      return res.send("❌ File not found");
+    }
 
-    // Direct download stream
-    res.download(path.join(__dirname, file), file, (err) => {
-      if (err) console.error(err);
-      fs.unlinkSync(file); // cleanup after sending
+    res.download(filePath, () => {
+      fs.unlinkSync(filePath); // delete after send
     });
   });
 });
+
 
 // -------------------------
 // Start server
 app.listen(PORT, () => {
   console.log(`
 ╔══════════════════════════════╗
-   🚀 AutoDL API Server Online
+   🚀 Server Success
    👤 Author: SUJON-BOSS
    🌐 Port: ${PORT}
 ╚══════════════════════════════╝
