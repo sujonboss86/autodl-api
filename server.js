@@ -1,6 +1,7 @@
 // ====================
-// server.js (Full AutoDL API)
+// server.js (Full AutoDL API - FIXED VERSION)
 // ====================
+
 const express = require("express");
 const fs = require("fs");
 const { exec } = require("child_process");
@@ -34,35 +35,59 @@ app.get("/status", (req, res) => {
 
 
 // -------------------------
-// Download route
+// Download route (ALL PLATFORM SUPPORT)
 app.get("/download", (req, res) => {
   const url = req.query.url;
-  if (!url) return res.send("❌ No URL provided");
+  if (!url) return res.json({ error: "❌ No URL provided" });
 
-  // unique filename
-  const fileName = `video_${Date.now()}.mp4`;
-  const filePath = path.join(__dirname, fileName);
-
-  // shorts fix
+  // Shorts fix
   let fixedUrl = url.includes("shorts")
     ? url.replace("youtube.com/shorts/", "youtube.com/watch?v=")
     : url;
 
-  const cmd = `yt-dlp -f "best[ext=mp4]" --no-playlist "${fixedUrl}" -o "${filePath}"`;
+  // UNIVERSAL COMMAND (no mp4 force)
+  const cmd = `yt-dlp -f best --no-playlist -g "${fixedUrl}"`;
 
-  exec(cmd, (err) => {
+  exec(cmd, (err, stdout, stderr) => {
     if (err) {
-      console.log(err);
-      return res.send("❌ Download error");
+      console.log("❌ ERROR:", err);
+      console.log("❌ STDERR:", stderr);
+      return res.json({ error: "❌ Download failed" });
     }
 
-    if (!fs.existsSync(filePath)) {
-      return res.send("❌ File not found");
+    if (!stdout) {
+      return res.json({ error: "❌ No data returned" });
     }
 
-    res.download(filePath, () => {
-      fs.unlinkSync(filePath); // delete after send
+    // multiple links handle
+    const links = stdout.trim().split("\n");
+
+    res.json({
+      status: true,
+      author: "SUJON-BOSS",
+      data: {
+        video: links[0] || null,
+        audio: links[1] || null
+      }
     });
+  });
+});
+
+
+// -------------------------
+// Info route (optional)
+app.get("/info", (req, res) => {
+  res.json({
+    endpoints: {
+      download: "/download?url=VIDEO_LINK",
+      status: "/status"
+    },
+    supported: [
+      "YouTube",
+      "TikTok",
+      "Facebook",
+      "Instagram (limited)"
+    ]
   });
 });
 
